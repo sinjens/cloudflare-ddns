@@ -1,13 +1,11 @@
 namespace CloudflareDdns.Services;
 
-public class DomainInfo
-{
-    public string Domain { get; set; } = "";
-    public string? CurrentIp { get; set; }
-    public string? ZoneId { get; set; }
-    public string? RecordId { get; set; }
-    public DateTime? LastUpdated { get; set; }
-}
+public record DomainInfo(
+    string Domain,
+    string? CurrentIp = null,
+    string? ZoneId = null,
+    string? RecordId = null,
+    DateTime? LastUpdated = null);
 
 public class LogEntry
 {
@@ -21,6 +19,7 @@ public class DdnsState
     private readonly object _lock = new();
     private readonly List<LogEntry> _log = new();
     private readonly Dictionary<string, DomainInfo> _domains = new();
+    private readonly SemaphoreSlim _refreshSignal = new(0, 1);
     private string? _publicIp;
 
     public event Action? OnChange;
@@ -28,7 +27,15 @@ public class DdnsState
     public string? PublicIp
     {
         get { lock (_lock) return _publicIp; }
-        set { lock (_lock) _publicIp = value; NotifyChange(); }
+        set
+        {
+            lock (_lock)
+            {
+                if (_publicIp == value) return;
+                _publicIp = value;
+            }
+            NotifyChange();
+        }
     }
 
     public IReadOnlyList<LogEntry> GetLog()
@@ -60,6 +67,17 @@ public class DdnsState
             if (_log.Count > 500) _log.RemoveAt(0);
         }
         NotifyChange();
+    }
+
+    public void RequestRefresh()
+    {
+        try { _refreshSignal.Release(); }
+        catch (SemaphoreFullException) { }
+    }
+
+    public async Task WaitForRefreshAsync(TimeSpan timeout, CancellationToken ct)
+    {
+        await _refreshSignal.WaitAsync(timeout, ct);
     }
 
     private void NotifyChange() => OnChange?.Invoke();

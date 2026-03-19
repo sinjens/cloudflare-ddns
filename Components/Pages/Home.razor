@@ -6,7 +6,10 @@
 
 <PageTitle>Cloudflare DDNS</PageTitle>
 
-<h3>Cloudflare DDNS</h3>
+<div class="d-flex align-items-center mb-2">
+    <h3 class="mb-0 me-3">Cloudflare DDNS</h3>
+    <button class="btn btn-sm btn-outline-primary" @onclick="Refresh">Refresh Now</button>
+</div>
 
 <div class="row mb-4">
     <div class="col-md-6">
@@ -92,6 +95,8 @@
         _log = State.GetLog();
         _domains = State.GetDomains();
     }
+
+    private void Refresh() => State.RequestRefresh();
 
     public void Dispose() => State.OnChange -= OnStateChanged;
 }

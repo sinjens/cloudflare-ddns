@@ -6,6 +6,7 @@ public class DdnsBackgroundService(
     CloudflareService cloudflare,
     DdnsState state,
     DdnsSettings settings,
+    IHttpClientFactory httpClientFactory,
     ILogger<DdnsBackgroundService> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -25,7 +26,7 @@ public class DdnsBackgroundService(
                 state.AddLog(msg, isError: true);
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(settings.IntervalMinutes), stoppingToken);
+            await state.WaitForRefreshAsync(TimeSpan.FromMinutes(settings.IntervalMinutes), stoppingToken);
         }
     }
 
@@ -80,13 +81,7 @@ public class DdnsBackgroundService(
                 return;
             }
 
-            info = new DomainInfo
-            {
-                Domain = domain,
-                ZoneId = zoneId,
-                RecordId = record.Id,
-                CurrentIp = record.Content
-            };
+            info = new DomainInfo(domain, CurrentIp: record.Content, ZoneId: zoneId, RecordId: record.Id);
             state.SetDomain(domain, info);
             state.AddLog($"[{domain}] Resolved: zone={zoneId}, record={record.Id}, IP={record.Content}");
         }
@@ -101,9 +96,7 @@ public class DdnsBackgroundService(
 
         if (success)
         {
-            info.CurrentIp = publicIp;
-            info.LastUpdated = DateTime.UtcNow;
-            state.SetDomain(domain, info);
+            state.SetDomain(domain, info with { CurrentIp = publicIp, LastUpdated = DateTime.UtcNow });
             state.AddLog($"[{domain}] Updated to {publicIp}");
         }
         else
@@ -112,9 +105,9 @@ public class DdnsBackgroundService(
         }
     }
 
-    private static async Task<string?> GetPublicIpAsync(CancellationToken ct)
+    private async Task<string?> GetPublicIpAsync(CancellationToken ct)
     {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        using var http = httpClientFactory.CreateClient("Ipify");
         var ip = (await http.GetStringAsync("https://api.ipify.org", ct)).Trim();
         return IPAddress.TryParse(ip, out _) ? ip : null;
     }
