@@ -9,7 +9,7 @@ public class CloudflareService(HttpClient httpClient)
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
     };
 
-    public async Task<string?> GetZoneIdAsync(string domain)
+    public async Task<(string? ZoneId, string? AccountId)> GetZoneInfoAsync(string domain)
     {
         // Extract root domain (last two parts) for zone lookup
         var parts = domain.Split('.',';');
@@ -20,7 +20,16 @@ public class CloudflareService(HttpClient httpClient)
         var json = await httpClient.GetFromJsonAsync<CloudflareResponse<List<ZoneResult>>>(
             $"zones?name={rootDomain}", JsonOptions);
 
-        return json?.Result?.FirstOrDefault()?.Id;
+        var zone = json?.Result?.FirstOrDefault();
+        return (zone?.Id, zone?.Account?.Id);
+    }
+
+    public async Task<TokenVerifyResult?> VerifyTokenAsync(string accountId)
+    {
+        var json = await httpClient.GetFromJsonAsync<CloudflareResponse<TokenVerifyResult>>(
+            $"accounts/{accountId}/tokens/verify", JsonOptions);
+
+        return json?.Success == true ? json.Result : null;
     }
 
     public async Task<DnsRecord?> GetDnsRecordAsync(string zoneId, string domain)
@@ -51,6 +60,13 @@ public class ZoneResult
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+    public ZoneAccount? Account { get; set; }
+}
+
+public class ZoneAccount
+{
+    public string Id { get; set; } = "";
+    public string Name { get; set; } = "";
 }
 
 public class DnsRecord
@@ -59,4 +75,12 @@ public class DnsRecord
     public string Name { get; set; } = "";
     public string Content { get; set; } = "";
     public string Type { get; set; } = "";
+}
+
+public class TokenVerifyResult
+{
+    public string Id { get; set; } = "";
+    public string Status { get; set; } = "";
+    public DateTime? NotBefore { get; set; }
+    public DateTime? ExpiresOn { get; set; }
 }

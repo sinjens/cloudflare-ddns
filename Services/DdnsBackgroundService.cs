@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 
 namespace CloudflareDdns.Services;
@@ -9,6 +10,9 @@ public class DdnsBackgroundService(
     IHttpClientFactory httpClientFactory,
     ILogger<DdnsBackgroundService> logger) : BackgroundService
 {
+    private string? _accountId;
+    private DateTime _lastTokenCheck = DateTime.MinValue;
+    private bool _tokenExpiryNotified;
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         state.AddLog("DDNS service started");
@@ -58,6 +62,8 @@ public class DdnsBackgroundService(
                 state.AddLog(msg, isError: true);
             }
         }
+
+        await CheckTokenExpiryAsync();
     }
 
     private async Task UpdateDomainAsync(string domain, string publicIp)
@@ -67,12 +73,14 @@ public class DdnsBackgroundService(
         // Resolve zone and record IDs if not cached
         if (info?.ZoneId == null || info?.RecordId == null)
         {
-            var zoneId = await cloudflare.GetZoneIdAsync(domain);
+            var (zoneId, accountId) = await cloudflare.GetZoneInfoAsync(domain);
             if (zoneId == null)
             {
                 state.AddLog($"[{domain}] Zone not found", isError: true);
                 return;
             }
+
+            _accountId ??= accountId;
 
             var record = await cloudflare.GetDnsRecordAsync(zoneId, domain);
             if (record == null || !IPAddress.TryParse(record.Content, out _))
@@ -102,6 +110,77 @@ public class DdnsBackgroundService(
         else
         {
             state.AddLog($"[{domain}] Update failed", isError: true);
+        }
+    }
+
+    private async Task CheckTokenExpiryAsync()
+    {
+        if (_accountId == null) return;
+        var checkInterval = state.TokenInfo?.ExpiresOn is { } exp
+            && exp - DateTime.UtcNow < TimeSpan.FromDays(30)
+            ? TimeSpan.FromDays(1)
+            : TimeSpan.FromDays(7);
+        if (DateTime.UtcNow - _lastTokenCheck < checkInterval) return;
+
+        _lastTokenCheck = DateTime.UtcNow;
+
+        try
+        {
+            var result = await cloudflare.VerifyTokenAsync(_accountId);
+            if (result == null)
+            {
+                state.TokenInfo = new TokenInfo("unknown", null, DateTime.UtcNow);
+                state.AddLog("API token verification failed", isError: true);
+                return;
+            }
+
+            var previousExpiry = state.TokenInfo?.ExpiresOn;
+            state.TokenInfo = new TokenInfo(result.Status, result.ExpiresOn, DateTime.UtcNow);
+            state.AddLog($"API token verified: status={result.Status}"
+                + (result.ExpiresOn.HasValue ? $", expires={result.ExpiresOn:yyyy-MM-dd}" : ", no expiry"));
+
+            if (result.ExpiresOn != previousExpiry)
+                _tokenExpiryNotified = false;
+
+            if (result.ExpiresOn.HasValue
+                && result.ExpiresOn.Value - DateTime.UtcNow < TimeSpan.FromDays(30)
+                && !_tokenExpiryNotified)
+            {
+                _tokenExpiryNotified = true;
+                var daysLeft = (int)(result.ExpiresOn.Value - DateTime.UtcNow).TotalDays;
+                var message = $"Cloudflare API token expires in {daysLeft} day{(daysLeft != 1 ? "s" : "")} ({result.ExpiresOn:yyyy-MM-dd})";
+                state.AddLog(message, isError: true);
+                SendUnraidNotification(message);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Token verification failed");
+            state.AddLog($"Token verification error: {ex.Message}", isError: true);
+        }
+    }
+
+    private void SendUnraidNotification(string message)
+    {
+        const string notifyScript = "/usr/local/emhttp/webGui/scripts/notify";
+        if (!File.Exists(notifyScript)) return;
+
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = notifyScript,
+                ArgumentList = { "-s", "Cloudflare DDNS", "-d", message, "-i", "warning" },
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            });
+            state.AddLog("Unraid notification sent for token expiry");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to send Unraid notification");
         }
     }
 

@@ -14,6 +14,8 @@ public class LogEntry
     public bool IsError { get; set; }
 }
 
+public record TokenInfo(string Status, DateTime? ExpiresOn, DateTime VerifiedAt);
+
 public class DdnsState
 {
     private readonly object _lock = new();
@@ -21,6 +23,7 @@ public class DdnsState
     private readonly Dictionary<string, DomainInfo> _domains = new();
     private readonly SemaphoreSlim _refreshSignal = new(0, 1);
     private string? _publicIp;
+    private TokenInfo? _tokenInfo;
 
     public event Action? OnChange;
 
@@ -33,6 +36,20 @@ public class DdnsState
             {
                 if (_publicIp == value) return;
                 _publicIp = value;
+            }
+            NotifyChange();
+        }
+    }
+
+    public TokenInfo? TokenInfo
+    {
+        get { lock (_lock) return _tokenInfo; }
+        set
+        {
+            lock (_lock)
+            {
+                if (_tokenInfo?.Status == value?.Status && _tokenInfo?.ExpiresOn == value?.ExpiresOn) return;
+                _tokenInfo = value;
             }
             NotifyChange();
         }

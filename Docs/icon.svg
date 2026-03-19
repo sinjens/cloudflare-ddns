@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6921E"/>
+      <stop offset="100%" stop-color="#D4760A"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="6" ry="6" fill="url(#bg)"/>
+  <path d="M10 6.5 L20 6.5" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <polygon points="20,4.5 23,6.5 20,8.5" fill="#FFFFFF"/>
+  <text x="16" y="16.5" text-anchor="middle" dominant-baseline="central" font-family="Arial,Helvetica,sans-serif" font-weight="bold" font-size="10.5" fill="#FFFFFF" letter-spacing="0.5">DNS</text>
+  <path d="M22 25.5 L12 25.5" stroke="#FFFFFF" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+  <polygon points="12,23.5 9,25.5 12,27.5" fill="#FFFFFF"/>
+</svg>

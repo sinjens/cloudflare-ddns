@@ -26,4 +26,10 @@
   <Config Type="Variable" Name="Check Interval" Target="Ddns__IntervalMinutes" Default="10"
     Description="Check interval in minutes" Display="advanced"
     Required="false" Mask="false">10</Config>
+
+  <Config Type="Path" Name="Unraid Notifications"
+    Target="/usr/local/emhttp/webGui/scripts/notify"
+    Default="/usr/local/emhttp/webGui/scripts/notify" Mode="ro"
+    Description="Unraid notification script (enables token expiry warnings)"
+    Display="advanced" Required="false">/usr/local/emhttp/webGui/scripts/notify</Config>
 </Container>

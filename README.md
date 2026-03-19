@@ -1,24 +1,30 @@
 # Cloudflare DDNS
 
-A lightweight Blazor Server app that automatically updates Cloudflare DNS A records with your public IP address. Built for running on Unraid (or any Docker host) in bridge mode.
+A lightweight Blazor Server app that automatically updates Cloudflare DNS A records with your public IP address. Built for running on Unraid (or any Docker host).
 
 ## Features
 
 - Checks public IP every 10 minutes via [ipify](https://api.ipify.org)
 - Updates Cloudflare A records only when the IP has changed
 - Caches zone/record IDs and IPs in memory to minimize API calls
-- Supports multiple domains (comma-separated)
-- Web dashboard showing domain status, current IPs, and a live log
+- Supports multiple domains (comma or semicolon-separated) if you are serving multiple domains
+- Web dashboard showing domain status, current IPs, and a log
 
 ## Configuration
 
 | Variable | Description | Default |
 |---|---|---|
-| `Ddns__CloudflareToken` | Cloudflare API bearer token | |
-| `Ddns__Domains` | Comma-separated list of domains to update | |
-| `Ddns__IntervalMinutes` | Check interval in minutes | `10` |
+| `Ddns:CloudflareToken` | Cloudflare API bearer token | |
+| `Ddns:Domains` | Comma or semicolon-separated list of domains to update | |
+| `Ddns:IntervalMinutes` | Check interval in minutes | `10` |
 
-The Cloudflare token needs `Zone:Read` and `DNS:Edit` permissions for the relevant zones.
+### Creating a Cloudflare API Token
+
+1. Go to https://dash.cloudflare.com/<youraccountid>/api-tokens
+2. Click **Create Token**
+3. Use the **Edit zone DNS** template or create a custom token with `Zone:Read` and `DNS:Edit` permissions for the relevant zones
+
+<img src="docs/cloudflaretoken.png">
 
 ## Docker
 
@@ -43,11 +49,13 @@ docker run -d \
 
 Add as a Docker container in bridge mode:
 - **Repository:** `ghcr.io/sinjens/cloudflareddns:latest`
-- **Network Type:** Bridge
-- **Port:** 80 -> 80
-- Add environment variables for `Ddns__CloudflareToken` and `Ddns__Domains`
+- Add environment variables for `Ddns:CloudflareToken` and `Ddns:Domains`
 
-## Local Development
+<img src="docs/dockerunraid.png">
+
+- The container will default to port 80, you can override it with adding this variable: ASPNETCORE_URLS=http://+:8080  (setting it to port 8080)
+
+## Local Testing/Development
 
 ```bash
 # Set the Cloudflare token as a user secret
@@ -59,4 +67,4 @@ dotnet run
 
 ## Build
 
-The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) builds and pushes the Docker image to GHCR on every push to `main`.
+The GitHub Actions workflow (`.github/workflows/docker-publish.yml`) builds and pushes the Docker image to GHCR on every push to `master`.

@@ -43,10 +43,38 @@
         </div>
     </div>
     <div class="col-md-6">
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-header">Public IP</div>
             <div class="card-body">
                 <h4><code>@(State.PublicIp ?? "...")</code></h4>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">API Token</div>
+            <div class="card-body">
+                @if (_tokenInfo == null)
+                {
+                    <span class="text-muted">Checking...</span>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge @(_tokenInfo.Status == "active" ? "bg-success" : "bg-danger") me-2">@_tokenInfo.Status</span>
+                        <small class="text-muted">verified @_tokenInfo.VerifiedAt.ToString("yyyy-MM-dd HH:mm") UTC</small>
+                    </div>
+                    @if (_tokenInfo.ExpiresOn.HasValue)
+                    {
+                        var daysLeft = (int)(_tokenInfo.ExpiresOn.Value - DateTime.UtcNow).TotalDays;
+                        <div>
+                            Expires: <strong>@_tokenInfo.ExpiresOn.Value.ToString("yyyy-MM-dd")</strong>
+                            <span class="@(daysLeft < 30 ? "text-danger fw-bold" : "text-muted")">(@daysLeft day@(daysLeft != 1 ? "s" : "") remaining)</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-muted">No expiry set</div>
+                    }
+                }
             </div>
         </div>
     </div>
@@ -74,6 +102,7 @@
 @code {
     private IReadOnlyList<LogEntry> _log = [];
     private IReadOnlyDictionary<string, DomainInfo> _domains = new Dictionary<string, DomainInfo>();
+    private TokenInfo? _tokenInfo;
 
     protected override void OnInitialized()
     {
@@ -94,6 +123,7 @@
     {
         _log = State.GetLog();
         _domains = State.GetDomains();
+        _tokenInfo = State.TokenInfo;
     }
 
     private void Refresh() => State.RequestRefresh();
