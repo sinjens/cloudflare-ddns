@@ -4,9 +4,9 @@ A lightweight Blazor Server app that automatically updates Cloudflare DNS A reco
 
 ## Features
 
-- Checks public IP every 10 minutes via [ipify](https://api.ipify.org)
-- Updates Cloudflare A records only when the IP has changed
-- Caches zone/record IDs and IPs in memory to minimize API calls
+- Checks public IP every 10 minutes (default setting) via [ipify](https://api.ipify.org)
+- Reads A records from the configured Domains in Cloudflare, caches the result in memory
+- Compares the A records IP addresses with the public IP and updates Clodflare if the public IP have changed
 - Supports multiple domains (comma or semicolon-separated) if you are serving multiple domains
 - Web dashboard showing domain status, current IPs, and a log
 
