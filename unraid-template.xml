@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Container version="2">
+  <TemplateURL>https://raw.githubusercontent.com/sinjens/cloudflare-ddns/main/unraid-template.xml</TemplateURL>
+  <Name>CloudflareDDNS</Name>
+  <Overview>Lightweight DDNS updater for Cloudflare. Monitors your public IP and updates A records automatically. Web dashboard shows domain status and live log.</Overview>
+  <Category>Network:DNS</Category>
+  <Repository>ghcr.io/sinjens/cloudflareddns:latest</Repository>
+  <Registry>https://github.com/sinjens/cloudflare-ddns/pkgs/container/cloudflareddns</Registry>
+  <Project>https://github.com/sinjens/cloudflare-ddns</Project>
+  <Icon>https://raw.githubusercontent.com/sinjens/cloudflare-ddns/main/icon.png</Icon>
+  <Network>bridge</Network>
+  <Privileged>false</Privileged>
+  <WebUI>http://[IP]:[PORT:80]/</WebUI>
+
+  <Config Type="Port" Name="Web UI" Target="80" Default="80" Mode="tcp"
+    Description="Web interface port" Display="always" Required="true">80</Config>
+
+  <Config Type="Variable" Name="Cloudflare Token" Target="Ddns__CloudflareToken" Default=""
+    Description="Cloudflare API bearer token (Zone:Read + DNS:Edit)" Display="always"
+    Required="true" Mask="true"/>
+
+  <Config Type="Variable" Name="Domains" Target="Ddns__Domains" Default=""
+    Description="Comma-separated list of domains to update (e.g. example.com,sub.example.com)" Display="always"
+    Required="true" Mask="false"/>
+
+  <Config Type="Variable" Name="Check Interval" Target="Ddns__IntervalMinutes" Default="10"
+    Description="Check interval in minutes" Display="advanced"
+    Required="false" Mask="false">10</Config>
+</Container>

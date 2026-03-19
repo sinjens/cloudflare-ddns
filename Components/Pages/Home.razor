@@ -1,0 +1,97 @@
+@page "/"
+@using CloudflareDdns.Services
+@inject DdnsState State
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Cloudflare DDNS</PageTitle>
+
+<h3>Cloudflare DDNS</h3>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Domain Status</div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th>IP</th>
+                            <th>Last Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _domains.Values)
+                        {
+                            <tr>
+                                <td>@d.Domain</td>
+                                <td><code>@(d.CurrentIp ?? "...")</code></td>
+                                <td>@(d.LastUpdated?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                            </tr>
+                        }
+                        @if (_domains.Count == 0)
+                        {
+                            <tr><td colspan="3" class="text-muted">Waiting for first check...</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Public IP</div>
+            <div class="card-body">
+                <h4><code>@(State.PublicIp ?? "...")</code></h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Log</div>
+    <div class="card-body p-0">
+        <div style="max-height: 500px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+            <table class="table table-sm table-hover mb-0">
+                <tbody>
+                    @foreach (var entry in _log.AsEnumerable().Reverse())
+                    {
+                        <tr class="@(entry.IsError ? "table-danger" : "")">
+                            <td style="white-space: nowrap; width: 1%;">@entry.Timestamp.ToString("HH:mm:ss")</td>
+                            <td>@entry.Message</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<LogEntry> _log = [];
+    private IReadOnlyDictionary<string, DomainInfo> _domains = new Dictionary<string, DomainInfo>();
+
+    protected override void OnInitialized()
+    {
+        RefreshData();
+        State.OnChange += OnStateChanged;
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            RefreshData();
+            StateHasChanged();
+        });
+    }
+
+    private void RefreshData()
+    {
+        _log = State.GetLog();
+        _domains = State.GetDomains();
+    }
+
+    public void Dispose() => State.OnChange -= OnStateChanged;
+}
