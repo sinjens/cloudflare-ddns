@@ -16,13 +16,17 @@ public class LogEntry
 
 public record TokenInfo(string Status, DateTime? ExpiresOn, DateTime VerifiedAt);
 
+public record HeDnsResult(string Domain, string Status, DateTime LastUpdated);
+
 public class DdnsState
 {
     private readonly object _lock = new();
     private readonly List<LogEntry> _log = new();
     private readonly Dictionary<string, DomainInfo> _domains = new();
+    private readonly Dictionary<string, HeDnsResult> _heDnsResults = new();
     private readonly SemaphoreSlim _refreshSignal = new(0, 1);
     private string? _publicIp;
+    private DateTime? _publicIpLastChecked;
     private TokenInfo? _tokenInfo;
 
     public event Action? OnChange;
@@ -37,6 +41,16 @@ public class DdnsState
                 if (_publicIp == value) return;
                 _publicIp = value;
             }
+            NotifyChange();
+        }
+    }
+
+    public DateTime? PublicIpLastChecked
+    {
+        get { lock (_lock) return _publicIpLastChecked; }
+        set
+        {
+            lock (_lock) _publicIpLastChecked = value;
             NotifyChange();
         }
     }
@@ -73,6 +87,17 @@ public class DdnsState
     public void SetDomain(string domain, DomainInfo info)
     {
         lock (_lock) _domains[domain] = info;
+        NotifyChange();
+    }
+
+    public IReadOnlyDictionary<string, HeDnsResult> GetHeDnsResults()
+    {
+        lock (_lock) return _heDnsResults.ToDictionary(k => k.Key, v => v.Value);
+    }
+
+    public void SetHeDnsResult(string domain, HeDnsResult result)
+    {
+        lock (_lock) _heDnsResults[domain] = result;
         NotifyChange();
     }
 

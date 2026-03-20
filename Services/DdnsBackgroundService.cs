@@ -45,9 +45,13 @@ public class DdnsBackgroundService(
 
         var previousIp = state.PublicIp;
         state.PublicIp = publicIp;
+        state.PublicIpLastChecked = DateTime.UtcNow;
 
         if (previousIp != publicIp)
+        {
             state.AddLog($"Public IP: {publicIp}" + (previousIp != null ? $" (was {previousIp})" : ""));
+            await UpdateHeDnsAsync(publicIp, ct);
+        }
 
         foreach (var domain in settings.GetDomainList())
         {
@@ -181,6 +185,29 @@ public class DdnsBackgroundService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to send Unraid notification");
+        }
+    }
+
+    private async Task UpdateHeDnsAsync(string publicIp, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(settings.HeDnsPassword)) return;
+
+        using var http = httpClientFactory.CreateClient("HeDns");
+        foreach (var domain in settings.GetHeDnsDomainList())
+        {
+            try
+            {
+                var url = $"https://dyn.dns.he.net/nic/update?hostname={Uri.EscapeDataString(domain)}&password={Uri.EscapeDataString(settings.HeDnsPassword)}";
+                var response = (await http.GetStringAsync(url, ct)).Trim();
+                var status = response.StartsWith("good") || response.StartsWith("nochg") ? "ok" : "error";
+                state.SetHeDnsResult(domain, new HeDnsResult(domain, response, DateTime.UtcNow));
+                state.AddLog($"[HE DNS] [{domain}] {response}", isError: status == "error");
+            }
+            catch (Exception ex)
+            {
+                state.SetHeDnsResult(domain, new HeDnsResult(domain, $"Error: {ex.Message}", DateTime.UtcNow));
+                state.AddLog($"[HE DNS] [{domain}] Error: {ex.Message}", isError: true);
+            }
         }
     }
 

@@ -1,6 +1,8 @@
 @page "/"
 @using CloudflareDdns.Services
 @inject DdnsState State
+@inject DdnsSettings Settings
+@inject IJSRuntime JS
 @implements IDisposable
 @rendermode InteractiveServer
 
@@ -30,7 +32,7 @@
                             <tr>
                                 <td>@d.Domain</td>
                                 <td><code>@(d.CurrentIp ?? "...")</code></td>
-                                <td>@(d.LastUpdated?.ToString("yyyy-MM-dd HH:mm:ss") ?? "-")</td>
+                                <td>@(d.LastUpdated != null ? ToLocal(d.LastUpdated.Value).ToString("yyyy-MM-dd HH:mm:ss") : "-")</td>
                             </tr>
                         }
                         @if (_domains.Count == 0)
@@ -41,39 +43,70 @@
                 </table>
             </div>
         </div>
+        @if (!string.IsNullOrWhiteSpace(Settings.HeDnsPassword))
+        {
+            <div class="card mt-3">
+                <div class="card-header">Hurricane Electric Free DNS</div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Domain</th>
+                                <th>Status</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var r in _heDnsResults.Values)
+                            {
+                                var isOk = r.Status.StartsWith("good") || r.Status.StartsWith("nochg");
+                                <tr class="@(!isOk ? "table-danger" : "")">
+                                    <td>@r.Domain</td>
+                                    <td>@r.Status</td>
+                                    <td>@ToLocal(r.LastUpdated).ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                </tr>
+                            }
+                            @if (_heDnsResults.Count == 0)
+                            {
+                                <tr><td colspan="3" class="text-muted">Waiting for IP change...</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
     </div>
     <div class="col-md-6">
         <div class="card mb-3">
-            <div class="card-header">Public IP</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Public IP</span>
+                <small class="text-muted fw-normal" style="font-size: 0.75rem;">(checked @(State.PublicIpLastChecked != null ? ToLocal(State.PublicIpLastChecked.Value).ToString("yyyy-MM-dd HH:mm:ss") : "..."))</small>
+            </div>
             <div class="card-body">
                 <h4><code>@(State.PublicIp ?? "...")</code></h4>
             </div>
         </div>
         <div class="card">
-            <div class="card-header">API Token</div>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>API Token</span>
+                <small class="text-muted fw-normal" style="font-size: 0.75rem;">@if (_tokenInfo != null) { <span>(verified @ToLocal(_tokenInfo.VerifiedAt).ToString("yyyy-MM-dd HH:mm:ss"))</span> }</small>
+            </div>
             <div class="card-body">
                 @if (_tokenInfo == null)
                 {
                     <span class="text-muted">Checking...</span>
                 }
+                else if (_tokenInfo.ExpiresOn.HasValue)
+                {
+                    var daysLeft = (int)(_tokenInfo.ExpiresOn.Value - DateTime.UtcNow).TotalDays;
+                    <div>
+                        Expires: <strong>@_tokenInfo.ExpiresOn.Value.ToString("yyyy-MM-dd")</strong>
+                        <span class="@(daysLeft < 30 ? "text-danger fw-bold" : "text-muted")">(@daysLeft day@(daysLeft != 1 ? "s" : "") remaining)</span>
+                    </div>
+                }
                 else
                 {
-                    <div class="d-flex align-items-center mb-2">
-                        <span class="badge @(_tokenInfo.Status == "active" ? "bg-success" : "bg-danger") me-2">@_tokenInfo.Status</span>
-                        <small class="text-muted">verified @_tokenInfo.VerifiedAt.ToString("yyyy-MM-dd HH:mm") UTC</small>
-                    </div>
-                    @if (_tokenInfo.ExpiresOn.HasValue)
-                    {
-                        var daysLeft = (int)(_tokenInfo.ExpiresOn.Value - DateTime.UtcNow).TotalDays;
-                        <div>
-                            Expires: <strong>@_tokenInfo.ExpiresOn.Value.ToString("yyyy-MM-dd")</strong>
-                            <span class="@(daysLeft < 30 ? "text-danger fw-bold" : "text-muted")">(@daysLeft day@(daysLeft != 1 ? "s" : "") remaining)</span>
-                        </div>
-                    }
-                    else
-                    {
-                        <div class="text-muted">No expiry set</div>
-                    }
+                    <div class="text-muted">No expiry set</div>
                 }
             </div>
         </div>
@@ -89,7 +122,7 @@
                     @foreach (var entry in _log.AsEnumerable().Reverse())
                     {
                         <tr class="@(entry.IsError ? "table-danger" : "")">
-                            <td style="white-space: nowrap; width: 1%;">@entry.Timestamp.ToString("HH:mm:ss")</td>
+                            <td style="white-space: nowrap; width: 1%;">@ToLocal(entry.Timestamp).ToString("HH:mm:ss")</td>
                             <td>@entry.Message</td>
                         </tr>
                     }
@@ -102,13 +135,29 @@
 @code {
     private IReadOnlyList<LogEntry> _log = [];
     private IReadOnlyDictionary<string, DomainInfo> _domains = new Dictionary<string, DomainInfo>();
+    private IReadOnlyDictionary<string, HeDnsResult> _heDnsResults = new Dictionary<string, HeDnsResult>();
     private TokenInfo? _tokenInfo;
+    private TimeZoneInfo _tz = TimeZoneInfo.Utc;
 
     protected override void OnInitialized()
     {
         RefreshData();
         State.OnChange += OnStateChanged;
     }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var ianaId = await JS.InvokeAsync<string>("eval", "Intl.DateTimeFormat().resolvedOptions().timeZone");
+            try { _tz = TimeZoneInfo.FindSystemTimeZoneById(ianaId); }
+            catch { _tz = TimeZoneInfo.Utc; }
+            StateHasChanged();
+        }
+    }
+
+    private DateTime ToLocal(DateTime utc) => TimeZoneInfo.ConvertTimeFromUtc(
+        DateTime.SpecifyKind(utc, DateTimeKind.Utc), _tz);
 
     private void OnStateChanged()
     {
@@ -123,6 +172,7 @@
     {
         _log = State.GetLog();
         _domains = State.GetDomains();
+        _heDnsResults = State.GetHeDnsResults();
         _tokenInfo = State.TokenInfo;
     }
 

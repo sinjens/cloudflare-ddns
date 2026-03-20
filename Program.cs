@@ -19,6 +19,10 @@ builder.Services.AddHttpClient("Ipify", client =>
 {
     client.Timeout = TimeSpan.FromSeconds(10);
 });
+builder.Services.AddHttpClient("HeDns", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddHostedService<DdnsBackgroundService>();
 
 var app = builder.Build();
