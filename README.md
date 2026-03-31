@@ -20,7 +20,7 @@ A lightweight Blazor Server app that automatically updates Cloudflare DNS A reco
 
 ### Creating a Cloudflare API Token
 
-1. Go to https://dash.cloudflare.com/<youraccountid>/api-tokens
+1. Go to https://dash.cloudflare.com/<youraccountid\>/api-tokens
 2. Click **Create Token**
 3. Use the **Edit zone DNS** template or create a custom token with `Zone:Read` and `DNS:Edit` permissions for the relevant zones
 
